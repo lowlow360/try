@@ -46,9 +46,7 @@ class PureAttendanceCalculator:
         self.root.geometry("850x680")
         self.root.configure(bg="#f8fafc")
         
-        # 改用動態列表來儲存無限多筆資料（不再受限於 30 天）
         self.records = []
-        
         self.create_widgets()
         self.refresh_ui_display()
 
@@ -62,7 +60,7 @@ class PureAttendanceCalculator:
         self.ent_ft_in = tk.Entry(frame_top, width=10, font=("Arial", 11))
         self.ent_ft_in.grid(row=0, column=1, padx=5, pady=5)
         self.ent_ft_in.bind("<KeyRelease>", self.on_ft_keywrite)
-        self.ent_ft_in.bind("<Return>", self.save_current_entry) # 綁定 Enter 鍵
+        self.ent_ft_in.bind("<Return>", self.save_current_entry) # 正職按 Enter 直接送出
         
         self.combo_ft_type = ttk.Combobox(frame_top, values=["遲到① (03:00後)", "遲到② (05:30後)", "早退 (12:00前)", "加班 (12:00後)"], state="readonly", width=16, font=("微軟正黑體", 10))
         self.combo_ft_type.grid(row=0, column=2, padx=5, pady=5)
@@ -75,12 +73,16 @@ class PureAttendanceCalculator:
         tk.Label(frame_top, text="【兼職】上班快捷:", bg="#ffffff", font=("微軟正黑體", 10)).grid(row=1, column=0, padx=2, pady=5, sticky="e")
         self.ent_pt_in = tk.Entry(frame_top, width=10, font=("Arial", 11))
         self.ent_pt_in.grid(row=1, column=1, padx=5, pady=5)
-        self.ent_pt_in.bind("<Return>", self.save_current_entry) # 綁定 Enter 鍵
+        
+        # 🌟 核心修改：兼職上班按 Enter，游標直接跳到下班框
+        self.ent_pt_in.bind("<Return>", lambda event: self.ent_pt_out.focus()) 
         
         tk.Label(frame_top, text="下班快捷:", bg="#ffffff", font=("微軟正黑體", 10)).grid(row=1, column=2, padx=2, pady=5, sticky="e")
         self.ent_pt_out = tk.Entry(frame_top, width=10, font=("Arial", 11))
         self.ent_pt_out.grid(row=1, column=3, padx=5, pady=5)
-        self.ent_pt_out.bind("<Return>", self.save_current_entry) # 綁定 Enter 鍵
+        
+        # 兼職下班按 Enter 才會執行送出
+        self.ent_pt_out.bind("<Return>", self.save_current_entry) 
         
         btn_save = tk.Button(frame_top, text="送出紀錄 (或按Enter)", command=self.save_current_entry, bg="#2563eb", fg="white", font=("微軟正黑體", 10, "bold"), padx=10)
         btn_save.grid(row=0, column=4, rowspan=2, padx=15, pady=5, sticky="ns")
@@ -89,7 +91,6 @@ class PureAttendanceCalculator:
         frame_table = tk.LabelFrame(self.root, text=" 工時數據明細矩陣 (雙擊任一行可刪除並抓回上方修改) ", font=("微軟正黑體", 11, "bold"), bg="#ffffff", padx=10, pady=5)
         frame_table.pack(padx=15, pady=5, fill="both", expand=True)
         
-        # 移除了 "day" 欄位
         columns = ("ft_in", "ft_type", "ft_hours", "pt_in", "pt_out", "pt_hours")
         self.tree = ttk.Treeview(frame_table, columns=columns, show="headings")
         
@@ -127,27 +128,24 @@ class PureAttendanceCalculator:
         else:
             self.lbl_ft_preview.config(text="轉時間: --:--")
 
-    def save_current_entry(self, event=None): # 加入 event 接收 Enter 鍵的訊號
+    def save_current_entry(self, event=None):
         try:
             ft_in = self.ent_ft_in.get().strip()
             ft_type = self.combo_ft_type.get()
             pt_in = self.ent_pt_in.get().strip()
             pt_out = self.ent_pt_out.get().strip()
             
-            # 如果都沒輸入就按 Enter，則不動作
             if not ft_in and (not pt_in or not pt_out):
                 return
             
             ft_hours = judge_fulltime_attendance(ft_in, ft_type) if ft_in else 0.0
             pt_hours = calculate_pt_hours(pt_in, pt_out) if (pt_in and pt_out) else 0.0
             
-            # 將新資料加入列表
             new_record = {
                 "ft_in": ft_in, "ft_type": ft_type if ft_in else "遲到① (03:00後)", "ft_total": ft_hours,
                 "pt_in": pt_in, "pt_out": pt_out, "pt_total": pt_hours
             }
             self.records.append(new_record)
-            
             self.refresh_ui_display()
             
             # 清空輸入框
@@ -156,8 +154,11 @@ class PureAttendanceCalculator:
             self.ent_pt_out.delete(0, tk.END)
             self.lbl_ft_preview.config(text="轉時間: --:--")
             
-            # 儲存後將游標自動移回正職輸入框，方便繼續盲打
-            self.ent_ft_in.focus()
+            # 🌟 智慧判斷游標位置：剛剛如果是輸入兼職，就回到兼職框；若是正職，就回正職框
+            if pt_in and pt_out:
+                self.ent_pt_in.focus()
+            else:
+                self.ent_ft_in.focus()
             
         except Exception as e:
             messagebox.showerror("錯誤", f"儲存失敗: {str(e)}")
@@ -192,34 +193,5 @@ class PureAttendanceCalculator:
                    f" ⊙ 早退總計:  {sum_early:.2f} 小時  |  ⊙ 加班總計:  {sum_over:.2f} 小時")
         self.lbl_ft_summary.config(text=ft_text)
         
-        pt_text = f"🟢 兼職 (PT) 累計總工時：\n{sum_pt:.2f} 小時"
-        self.lbl_pt_summary.config(text=pt_text)
+        pt_text
 
-    def on_table_double_click(self, event):
-        try:
-            item = self.tree.selection()[0]
-            idx = int(item)
-            d = self.records[idx]
-            
-            # 把點擊的資料抓回上方輸入框
-            self.ent_ft_in.delete(0, tk.END)
-            self.ent_ft_in.insert(0, d["ft_in"])
-            self.on_ft_keywrite(None)
-            
-            type_idx = ["遲到①", "遲到②", "早退", "加班"].index(d["ft_type"].split()[0])
-            self.combo_ft_type.current(type_idx)
-            
-            self.ent_pt_in.delete(0, tk.END)
-            self.ent_pt_in.insert(0, d["pt_in"])
-            self.ent_pt_out.delete(0, tk.END)
-            self.ent_pt_out.insert(0, d["pt_out"])
-            
-            # 從列表中刪除這筆舊資料，等待使用者修改後重新按 Enter
-            self.records.pop(idx)
-            self.refresh_ui_display()
-        except: pass
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    app = PureAttendanceCalculator(root)
-    root.mainloop()
