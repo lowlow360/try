@@ -193,5 +193,32 @@ class PureAttendanceCalculator:
                    f" ⊙ 早退總計:  {sum_early:.2f} 小時  |  ⊙ 加班總計:  {sum_over:.2f} 小時")
         self.lbl_ft_summary.config(text=ft_text)
         
-        pt_text
+        pt_text = f"🟢 兼職 (PT) 累計總工時：\n{sum_pt:.2f} 小時"
+        self.lbl_pt_summary.config(text=pt_text)
 
+    def on_table_double_click(self, event):
+        try:
+            item = self.tree.selection()[0]
+            idx = int(item)
+            d = self.records[idx]
+            
+            self.ent_ft_in.delete(0, tk.END)
+            self.ent_ft_in.insert(0, d["ft_in"])
+            self.on_ft_keywrite(None)
+            
+            type_idx = ["遲到①", "遲到②", "早退", "加班"].index(d["ft_type"].split()[0])
+            self.combo_ft_type.current(type_idx)
+            
+            self.ent_pt_in.delete(0, tk.END)
+            self.ent_pt_in.insert(0, d["pt_in"])
+            self.ent_pt_out.delete(0, tk.END)
+            self.ent_pt_out.insert(0, d["pt_out"])
+            
+            self.records.pop(idx)
+            self.refresh_ui_display()
+        except: pass
+
+if __name__ == "__main__":
+    root = tk.Tk()
+    app = PureAttendanceCalculator(root)
+    root.mainloop()
