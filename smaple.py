@@ -42,8 +42,8 @@ def judge_fulltime_attendance(check_in, attendance_type):
 class PureAttendanceCalculator:
     def __init__(self, root):
         self.root = root
-        self.root.title("考勤工時計算機 - 極速盲打連續輸入版")
-        self.root.geometry("850x680")
+        self.root.title("考勤工時計算機")
+        self.root.geometry("1024x768")
         self.root.configure(bg="#f8fafc")
         
         self.records = []
@@ -60,7 +60,7 @@ class PureAttendanceCalculator:
         self.ent_ft_in = tk.Entry(frame_top, width=10, font=("Arial", 11))
         self.ent_ft_in.grid(row=0, column=1, padx=5, pady=5)
         self.ent_ft_in.bind("<KeyRelease>", self.on_ft_keywrite)
-        self.ent_ft_in.bind("<Return>", self.save_current_entry) # 正職按 Enter 直接送出
+        self.ent_ft_in.bind("<Return>", self.save_current_entry)
         
         self.combo_ft_type = ttk.Combobox(frame_top, values=["遲到① (03:00後)", "遲到② (05:30後)", "早退 (12:00前)", "加班 (12:00後)"], state="readonly", width=16, font=("微軟正黑體", 10))
         self.combo_ft_type.grid(row=0, column=2, padx=5, pady=5)
@@ -73,19 +73,20 @@ class PureAttendanceCalculator:
         tk.Label(frame_top, text="【兼職】上班快捷:", bg="#ffffff", font=("微軟正黑體", 10)).grid(row=1, column=0, padx=2, pady=5, sticky="e")
         self.ent_pt_in = tk.Entry(frame_top, width=10, font=("Arial", 11))
         self.ent_pt_in.grid(row=1, column=1, padx=5, pady=5)
-        
-        # 🌟 核心修改：兼職上班按 Enter，游標直接跳到下班框
         self.ent_pt_in.bind("<Return>", lambda event: self.ent_pt_out.focus()) 
         
         tk.Label(frame_top, text="下班快捷:", bg="#ffffff", font=("微軟正黑體", 10)).grid(row=1, column=2, padx=2, pady=5, sticky="e")
         self.ent_pt_out = tk.Entry(frame_top, width=10, font=("Arial", 11))
         self.ent_pt_out.grid(row=1, column=3, padx=5, pady=5)
-        
-        # 兼職下班按 Enter 才會執行送出
         self.ent_pt_out.bind("<Return>", self.save_current_entry) 
         
-        btn_save = tk.Button(frame_top, text="送出紀錄 (或按Enter)", command=self.save_current_entry, bg="#2563eb", fg="white", font=("微軟正黑體", 10, "bold"), padx=10)
-        btn_save.grid(row=0, column=4, rowspan=2, padx=15, pady=5, sticky="ns")
+        # 按鈕區 (送出按鈕 與 新增的清空按鈕)
+        btn_save = tk.Button(frame_top, text="送出紀錄", command=self.save_current_entry, bg="#2563eb", fg="white", font=("微軟正黑體", 10, "bold"), padx=10)
+        btn_save.grid(row=0, column=4, rowspan=2, padx=10, pady=5, sticky="ns")
+        
+        # 🌟 新增：一鍵清空按鈕 (紅色)
+        btn_clear = tk.Button(frame_top, text="一鍵清空\n所有紀錄", command=self.clear_all_records, bg="#ef4444", fg="white", font=("微軟正黑體", 10, "bold"), padx=10)
+        btn_clear.grid(row=0, column=5, rowspan=2, padx=5, pady=5, sticky="ns")
 
         # --- 中間無限制資料表格區塊 ---
         frame_table = tk.LabelFrame(self.root, text=" 工時數據明細矩陣 (雙擊任一行可刪除並抓回上方修改) ", font=("微軟正黑體", 11, "bold"), bg="#ffffff", padx=10, pady=5)
@@ -121,6 +122,16 @@ class PureAttendanceCalculator:
         self.lbl_pt_summary = tk.Label(self.frame_summary, text="", bg="#0f172a", fg="#34d399", font=("微軟正黑體", 11, "bold"), justify="right")
         self.lbl_pt_summary.pack(side="right", padx=15, pady=10)
 
+    # 🌟 新增：一鍵清空功能邏輯
+    def clear_all_records(self):
+        if len(self.records) == 0:
+            return # 如果本來就沒資料，按了不理他
+            
+        # 跳出防呆確認視窗
+        if messagebox.askyesno("確認清空", "確定要清空下方表格的所有紀錄嗎？\n(清空後無法復原)"):
+            self.records = []  # 將資料陣列直接清空
+            self.refresh_ui_display() # 重新整理畫面
+
     def on_ft_keywrite(self, event):
         val = self.ent_ft_in.get().strip()
         if val.isdigit():
@@ -148,13 +159,11 @@ class PureAttendanceCalculator:
             self.records.append(new_record)
             self.refresh_ui_display()
             
-            # 清空輸入框
             self.ent_ft_in.delete(0, tk.END)
             self.ent_pt_in.delete(0, tk.END)
             self.ent_pt_out.delete(0, tk.END)
             self.lbl_ft_preview.config(text="轉時間: --:--")
             
-            # 🌟 智慧判斷游標位置：剛剛如果是輸入兼職，就回到兼職框；若是正職，就回正職框
             if pt_in and pt_out:
                 self.ent_pt_in.focus()
             else:
